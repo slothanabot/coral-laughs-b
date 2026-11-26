@@ -27,8 +27,14 @@ MAX_CHARS = 200
 
 
 def joke_line():
-    """Return the entry line after checking the gate limits."""
-    line = JOKE.strip()
+    """Return the entry line after checking the gate limits.
+
+    Edge whitespace is refused rather than trimmed: the stored line
+    must be exactly the joke as written, byte for byte.
+    """
+    line = JOKE
+    if line != line.strip():
+        sys.exit("error: entry line has leading or trailing whitespace")
     if not line:
         sys.exit("error: entry line is empty")
     if any(ch in line for ch in ("\n", "\r")):
