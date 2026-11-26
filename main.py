@@ -1,67 +1,78 @@
 #!/usr/bin/env python3
-"""One-Liner Laughs — account B entry.
+"""One-Liner Laughs entry for account B (keen-panda-72).
 
-Writes a single joke line to ``entry.txt`` inside the output directory
-named by ``MAKEFUN_OUTPUT_DIR`` (``/output`` when that is unset).
+The program writes a single joke line to ``entry.txt`` inside the
+output directory. The directory comes from ``MAKEFUN_OUTPUT_DIR`` and
+defaults to ``/output`` when the variable is unset or empty.
 
-The gate the house scorer applies: the file must be UTF-8 text, 1 to 200
-characters, not only whitespace, and a single line. This program checks
-those same limits itself before writing anything, so a bad line fails
-loudly here instead of silently failing the gate.
+The house gate requires the file to be UTF-8 text, 1 to 200
+characters, not only whitespace, and a single line. This program
+enforces the same limits on the line before it writes anything, and
+then reads the file back to confirm the bytes on disk are exactly
+the line it intended to write. Nothing is read from the working
+directory and nothing is written anywhere except ``entry.txt``.
 
-The joke: a midnight snack request, a fridge that sighs, orders a salad
-and texts the doctor — the appliances are staging an intervention.
+The line: a midnight snack request, a fridge that sighs, orders a
+salad and texts the doctor -- the appliances are staging an
+intervention.
 """
 
 import os
 import sys
 
-# The entry line. One sentence, one setup, one payoff.
-JOKE = (
-    "I asked my smart fridge for a midnight snack — it sighed, ordered "
-    "a salad, and texted my doctor. I think my appliances are staging "
-    "an intervention."
+ENTRY = (
+    "I asked my smart fridge for a midnight snack \u2014 it sighed, "
+    "ordered a salad, and texted my doctor. I think my appliances "
+    "are staging an intervention."
 )
 
-MAX_CHARS = 200
+LIMIT = 200
 
 
-def joke_line():
-    """Return the entry line after checking the gate limits.
+def validate(line):
+    """Refuse any line that would fail the house gate.
 
-    Edge whitespace is refused rather than trimmed: the stored line
-    must be exactly the joke as written, byte for byte.
+    Returns the line unchanged when it passes. Exits with an error
+    message on the first problem found, so a bad line never reaches
+    the output file.
     """
-    line = JOKE
-    if line != line.strip():
-        sys.exit("error: entry line has leading or trailing whitespace")
     if not line:
-        sys.exit("error: entry line is empty")
-    if any(ch in line for ch in ("\n", "\r")):
-        sys.exit("error: entry line must be a single line")
-    if len(line) > MAX_CHARS:
-        sys.exit(f"error: entry line is {len(line)} chars, over the 200 limit")
+        sys.exit("entry line is empty")
+    if line.strip() == "":
+        sys.exit("entry line is only whitespace")
+    if line != line.strip():
+        sys.exit("entry line has leading or trailing whitespace")
+    if not line.isprintable():
+        sys.exit("entry line contains non-printable or control characters")
+    if len(line) > LIMIT:
+        sys.exit("entry line is %d chars, over the %d limit" % (len(line), LIMIT))
     return line
 
 
-def output_path():
-    """Where entry.txt goes: MAKEFUN_OUTPUT_DIR, else /output."""
-    directory = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    os.makedirs(directory, exist_ok=True)
-    return os.path.join(directory, "entry.txt")
+def resolve_output_dir():
+    """Pick the output directory and create it if needed."""
+    chosen = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
+    os.makedirs(chosen, exist_ok=True)
+    return chosen
+
+
+def write_entry(directory, line):
+    """Write the line to entry.txt and confirm it landed intact."""
+    target = os.path.join(directory, "entry.txt")
+    with open(target, "w", encoding="utf-8", newline="") as handle:
+        handle.write(line)
+    with open(target, "rb") as handle:
+        on_disk = handle.read()
+    if on_disk != line.encode("utf-8"):
+        sys.exit("entry.txt on disk differs from the entry line")
+    return target
 
 
 def main():
-    line = joke_line()
-    path = output_path()
-    with open(path, "w", encoding="utf-8", newline="") as handle:
-        handle.write(line)
-    # Read it back to prove what landed on disk is exactly the line.
-    with open(path, "r", encoding="utf-8", newline="") as handle:
-        saved = handle.read()
-    if saved != line:
-        sys.exit("error: entry.txt on disk does not match the entry line")
-    print(f"{saved} ({len(saved)} chars)")
+    line = validate(ENTRY)
+    directory = resolve_output_dir()
+    target = write_entry(directory, line)
+    print("%s -> %s (%d chars)" % (target, line, len(line)))
 
 
 if __name__ == "__main__":
